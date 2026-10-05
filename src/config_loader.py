@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Конфиг и ключи: config.json (настройки) + keys.json (секреты).
+"""Конфиг и ключи: config.json + keys.json.
 
-Пользовательские данные (ключи, настройки, история, персоны, логи) живут ВНЕ
-папки мода:
+Шаблоны лежат внутри бандла в src/json/*.json.
+Реальные рабочие файлы создаются и читаются строго из папки пользователя:
   - Windows: %LOCALAPPDATA%/AI.Sovenok
   - Linux:   $XDG_CONFIG_HOME/AI.Sovenok (или ~/.config/AI.Sovenok)
-
-Steam может перезалить папку мастерской в любой момент и стереть всё внутри,
-поэтому хранить пользовательские данные в папке мода нельзя.
 """
 import json
 import os
@@ -17,13 +14,18 @@ import threading
 
 
 def _get_base_dir():
-    """Каталог с исполняемым файлом или скриптом (вне папки _internal PyInstaller)."""
+    """Путь к ресурсам внутри PyInstaller (_MEIPASS) или корень проекта."""
     if getattr(sys, "frozen", False):
-        return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(__file__))
+        return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
+    # Если запущен из src/ или корня — берем корень
+    cur = os.path.dirname(os.path.abspath(__file__))
+    if os.path.basename(cur) == "src":
+        return os.path.dirname(cur)
+    return cur
 
 
-_DIR = _get_base_dir()
+_BASE_DIR = _get_base_dir()
+_TEMPLATES_DIR = os.path.join(_BASE_DIR, "src", "json")
 _DATA_DIR_NAME = "AI.Sovenok"
 _USER_DIR = None
 _lock = threading.Lock()
@@ -47,51 +49,51 @@ def user_data_dir():
             _USER_DIR = target_dir
         except Exception as e:
             print(f"[CONFIG WARN] Ошибка доступа к {target_dir}: {e}. Используем fallback.")
-            _USER_DIR = _DIR
+            _USER_DIR = _BASE_DIR
     return _USER_DIR
 
 
-def _copy_if_missing(src, dst):
-    if not src or not dst or os.path.exists(dst) or not os.path.exists(src):
-        return
-    try:
-        parent = os.path.dirname(dst)
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent, exist_ok=True)
-        shutil.copy2(src, dst)
-    except Exception as e:
-        print(f"[CONFIG MIGRATE WARN] {src} -> {dst}: {e}")
+def get_template_path(filename):
+    """Возвращает путь к дефолтному шаблону в src/json/."""
+    candidates = [
+        os.path.join(_TEMPLATES_DIR, filename),
+        os.path.join(_BASE_DIR, "json", filename),
+        os.path.join(_BASE_DIR, filename),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
 
 
-def migrate_user_data():
-    """Старые пользовательские файлы из папки мода -> в папку данных (идемпотентно)."""
+def seed_user_data():
+    """Засеивает пользовательскую папку дефолтными JSON из src/json, если их там ещё нет."""
     u = user_data_dir()
-    if os.path.abspath(u) == os.path.abspath(_DIR):
-        return
+    os.makedirs(u, exist_ok=True)
 
-    # Проверяем файлы рядом с бинарником (server/windows или server/linux),
-    # а также на уровень выше (server/) на случай старой структуры
-    possible_roots = [_DIR, os.path.dirname(_DIR)]
-
+    # 1. Шаблоны, которые нужно распаковать новичку
     for filename in ("config.json", "keys.json", "es_characters.json"):
         dst = os.path.join(u, filename)
         if not os.path.exists(dst):
-            for root in possible_roots:
-                src = os.path.join(root, filename)
-                if os.path.exists(src):
-                    _copy_if_missing(src, dst)
-                    break
+            src = get_template_path(filename)
+            if os.path.exists(src):
+                try:
+                    shutil.copy2(src, dst)
+                except Exception as e:
+                    print(f"[CONFIG SEED ERROR] {src} -> {dst}: {e}")
 
+    # 2. Обратная совместимость: если у юзера остались старые данные в папке мода
+    legacy_roots = [_BASE_DIR, os.path.dirname(_BASE_DIR)]
     dst_mem = os.path.join(u, "memory", "conversations")
     if not os.path.isdir(dst_mem):
-        for root in possible_roots:
+        for root in legacy_roots:
             src_mem = os.path.join(root, "memory", "conversations")
             if os.path.isdir(src_mem):
                 try:
                     shutil.copytree(src_mem, dst_mem)
                     break
-                except Exception as e:
-                    print(f"[CONFIG MIGRATE WARN] memory: {e}")
+                except Exception:
+                    pass
 
 
 def _read(path, default):
@@ -100,14 +102,14 @@ def _read(path, default):
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[CONFIG WARN] {path}: {e}")
+            print(f"[CONFIG WARN] Ошибка чтения {path}: {e}")
     return default
 
 
 def reload_all():
-    """In-place обновление: сохраняет ссылки на единые dict-объекты."""
+    """Перечитывает пользовательские файлы из user_data_dir."""
     global cfg, keys
-    migrate_user_data()
+    seed_user_data()
     u = user_data_dir()
     new_cfg = _read(os.path.join(u, "config.json"), {})
     new_keys = _read(os.path.join(u, "keys.json"), {})
