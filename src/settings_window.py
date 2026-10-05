@@ -27,7 +27,7 @@ def _get_base_dir():
     if getattr(sys, "frozen", False):
         return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
     return os.path.dirname(os.path.abspath(__file__))
-
+ss
 BASE_DIR = _get_base_dir()
 sys.path.insert(0, BASE_DIR)
 
@@ -367,7 +367,7 @@ def _focus_existing_window():
 
 def _log_window_error(text):
     try:
-        from config_loader import user_data_dir
+        from src.config_loader import user_data_dir
         path = os.path.join(user_data_dir(), "settings_window_error.log")
     except Exception:
         path = os.path.join(BASE_DIR, "settings_window_error.log")
@@ -1171,7 +1171,7 @@ def run_settings_window():
             data = {"_app": "AI.Sovenok", "_version": 1, "_saved": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "config": json.loads(json.dumps(cfg)), "keys": json.loads(json.dumps(keys)), "characters": None}
             try:
-                from config_loader import user_data_dir as _udd
+                from src.config_loader import user_data_dir as _udd
                 cp = os.path.join(_udd(), "es_characters.json")
                 if os.path.exists(cp):
                     with open(cp, encoding="utf-8") as f:
@@ -1212,7 +1212,7 @@ def run_settings_window():
             chars = data.get("characters")
             if isinstance(chars, dict) and chars.get("characters"):
                 try:
-                    from config_loader import user_data_dir as _udd
+                    from src.config_loader import user_data_dir as _udd
                     with open(os.path.join(_udd(), "es_characters.json"), "w", encoding="utf-8") as f:
                         json.dump(chars, f, ensure_ascii=False, indent=2)
                 except Exception:
@@ -2551,7 +2551,7 @@ def run_settings_window():
     b_hist = Chip(u"Очистить историю", clear_history, h=36, managed=False)
     b_reset = Chip(u"Сбросить всё", reset_all, h=36, managed=False)
     try:
-        from config_loader import user_data_dir as _udd
+        from src.config_loader import user_data_dir as _udd
         b_folder = Chip(u"Папка конфигов", lambda: open_folder(_udd()), h=36, managed=False)
     except Exception:
         b_folder = Chip(u"Папка конфигов", lambda: open_folder(BASE_DIR), h=36, managed=False)

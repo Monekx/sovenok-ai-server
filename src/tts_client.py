@@ -28,7 +28,7 @@ _cache_state = {}
 def _cache_dir():
     d = cfg.get("tts", {}).get("cache_dir", "cache_tts")
     if not os.path.isabs(d):
-        from config_loader import user_data_dir
+        from src.config_loader import user_data_dir
         d = os.path.join(user_data_dir(), d)
     os.makedirs(d, exist_ok=True)
     return d
@@ -274,7 +274,7 @@ def _edge_version():
 
 def _edge_log(msg):
     try:
-        from config_loader import user_data_dir
+        from src.config_loader import user_data_dir
         path = os.path.join(user_data_dir(), "tts_edge.log")
         with open(path, "a", encoding="utf-8") as f:
             f.write("[%s] %s\n" % (time.strftime("%H:%M:%S"), msg))

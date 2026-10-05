@@ -634,7 +634,7 @@ def main():
     # -------------------------------------------------------------
     if "--settings" in sys.argv:
         try:
-            from src.settings import run_settings_window
+            from src.settings_window import run_settings_window
             run_settings_window()
         except Exception as e:
             print("Ошибка запуска GUI:", e)

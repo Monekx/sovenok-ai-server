@@ -1,8 +1,12 @@
 import sys
+import multiprocessing
+import main
 
-if "--settings" in sys.argv:
-    import src.settings_window
-    src.settings_window.run_settings_window()
-else:
-    import main
-    main.main()
+if __name__ == "__main__":
+    multiprocessing.freeze_support()  # ОБЯЗАТЕЛЬНО для PyInstaller
+
+    if "--settings" in sys.argv:
+        from src.settings_window import run_settings_window
+        run_settings_window()
+    else:
+        main.main()
