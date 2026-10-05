@@ -1,0 +1,65 @@
+{
+  "host": "127.0.0.1",
+  "port": 40310,
+  "cameo_enabled": true,
+  "llm": {
+    "_hint": "api.openai.com из РФ недоступен. Рабочие варианты: Groq (быстрый, бесплатный тариф), OpenRouter (много моделей, есть бесплатные), Ollama/LM Studio (локально, без ключа).",
+    "api_url": "https://api.mistral.ai/v1/chat/completions",
+    "model": "mistral-small-latest",
+    "max_tokens": 400,
+    "temperature": 0.9,
+    "request_timeout": 90,
+    "provider": "mistral"
+  },
+  "tts": {
+    "provider": "auto",
+    "cache_dir": "cache_tts",
+    "elevenlabs_model": "eleven_multilingual_v2",
+    "elevenlabs_default_voice": "EXAVITQu4vr4xnSDxMaL",
+    "openai_tts_model": "tts-1",
+    "edge_tts_format": "mp3",
+    "custom_tts_url": "",
+    "fish_model": "s2.1-pro-free",
+    "fish_reference_id": "6dc11f3f67a543f6ad4537a4a347e224",
+    "edge_voice": "ru-RU-SvetlanaNeural",
+    "edge_voice_female": "ru-RU-SvetlanaNeural",
+    "edge_voice_male": "ru-RU-DmitryNeural",
+    "narrator_voice": {
+      "edge": "ru-RU-SvetlanaNeural",
+      "elevenlabs": "EXAVITQu4vr4xnSDxMaL",
+      "openai": "nova",
+      "fish": "6dc11f3f67a543f6ad4537a4a347e224"
+    },
+    "fish_voice_female": "6dc11f3f67a543f6ad4537a4a347e224",
+    "fish_voice_male": "",
+    "elevenlabs_voice_female": "EXAVITQu4vr4xnSDxMaL",
+    "elevenlabs_voice_male": "",
+    "openai_voice_female": "nova",
+    "openai_voice_male": "onyx",
+    "openai_default_voice": "nova",
+    "sapi_voice_female": "",
+    "sapi_voice_male": "",
+    "sapi_voice": "",
+    "custom_tts_model": "tts-1",
+    "custom_voice_female": "nova",
+    "custom_voice_male": "onyx"
+  },
+  "stt": {
+    "provider": "auto",
+    "max_record_seconds": 8,
+    "silence_stop_seconds": 1.2,
+    "whisper_model": "whisper-1",
+    "groq_whisper_model": "whisper-large-v3-turbo",
+    "language": "ru"
+  },
+  "history": {
+    "max_messages": 16,
+    "keep_recent": 6,
+    "compress_threshold": 16
+  },
+  "novel": {
+    "max_context_lines": 24,
+    "reply_max_sentences": 4
+  },
+  "ui_lang": "ru"
+}

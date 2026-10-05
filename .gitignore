@@ -1,0 +1,15 @@
+# PyInstaller артефакты
+dist/
+build/
+*.spec
+
+# Рантаймы и виртуалки
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Логи и временные файлы
+*.log
+*.tmp
+.DS_Store
