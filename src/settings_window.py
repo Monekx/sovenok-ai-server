@@ -31,12 +31,12 @@ def _get_base_dir():
 BASE_DIR = _get_base_dir()
 sys.path.insert(0, BASE_DIR)
 
-import config_loader
-import llm_client
-import tts_client
-import stt_client
-import ui_i18n
-from characters_store import characters, get_character
+import src.config_loader as config_loader
+import src.llm_client as llm_client
+import src.tts_client as tts_client
+import src.stt_client as stt_client
+import src.ui_i18n as ui_i18n
+from src.characters_store import characters, get_character
 
 config_loader.reload_all()
 cfg = config_loader.cfg
@@ -239,19 +239,24 @@ ES_MAP_PIN = {
 }
 
 def _load_map_pil():
-    """Загрузка карты лагеря из папки ui через Pillow."""
+    """Загрузка изображения карты через Pillow."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     candidates = [
-        os.path.join(BASE_DIR, "src", "ui", "es_ai_map_bg_png.png"),
-        os.path.join(BASE_DIR, "ui", "es_ai_map_bg_png.png"),
-        os.path.join(BASE_DIR, "src", "ui", "es_ai_map_bg_png.png"),
-        os.path.join(BASE_DIR, "ui", "es_ai_map_bg_png.png"),
+        os.path.join(base, "src", "ui", "map.png"),
+        os.path.join(base, "ui", "map.png"),
+        os.path.join(base, "src", "ui", "map.jpg"),
+        os.path.join(base, "ui", "map.jpg"),
+        os.path.join(os.path.dirname(base), "src", "ui", "map.png"),
     ]
     for path in candidates:
-        if os.path.exists(path):
+        if os.path.isfile(path):
             try:
-                return Image.open(path).convert("RGB")
+                img = Image.open(path).convert("RGB")
+                print(f"[MAP INFO] Карта успешно загружена из: {path} ({img.width}x{img.height})")
+                return img
             except Exception as e:
-                print(f"[MAP ERROR] Ошибка загрузки {path}: {e}")
+                print(f"[MAP ERROR] Ошибка чтения {path}: {e}")
+    print(f"[MAP ERROR] Файл карты не найден. Проверенные пути:\n" + "\n".join(candidates))
     return None
 
 SP = 6
@@ -446,8 +451,11 @@ def run_settings_window():
 
     _img_cache = {}
 
+    import io
     def _to_photo(im):
-        return ImageTk.PhotoImage(im)
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        return tk.PhotoImage(data=buf.getvalue())
 
     def pill(w, h, fill, border, radius=None, shadow=True, gloss=True, bw=1):
         w, h = max(int(w), 6), max(int(h), 6)
@@ -2238,17 +2246,31 @@ def run_settings_window():
         result_txt["stt"].place(x0 + stt_test.nat_w + 16, y + H / 2.0, width=cw - stt_test.nat_w - 16)
 
     # --- Промпты ---
-    chars_path = os.path.join(BASE_DIR, "es_characters.json")
-    try:
-        from config_loader import user_data_dir
-        cp = os.path.join(user_data_dir(), "es_characters.json")
-        if os.path.exists(cp): chars_path = cp
-    except Exception: pass
+    def _resolve_characters_file():
+            # 1. Сначала пользовательский конфиг в ~/.config / %LOCALAPPDATA%
+            u_path = os.path.join(config_loader.user_data_dir(), "es_characters.json")
+            if os.path.isfile(u_path):
+                return u_path
+            # 2. Шаблон из бандла PyInstaller
+            tmpl = config_loader.get_template_path("es_characters.json")
+            if os.path.isfile(tmpl):
+                return tmpl
+            # 3. Пути внутри распакованного _internal
+            for fallback in [
+                os.path.join(BASE_DIR, "src", "json", "es_characters.json"),
+                os.path.join(BASE_DIR, "json", "es_characters.json"),
+                os.path.join(BASE_DIR, "es_characters.json"),
+            ]:
+                if os.path.isfile(fallback):
+                    return fallback
+            return u_path
 
+    chars_path = _resolve_characters_file()
     try:
-        with open(chars_path, encoding="utf-8") as f:
+        with open(chars_path, "r", encoding="utf-8") as f:
             prompt_data = json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"[PROMPTS ERROR] Не удалось прочитать {chars_path}: {e}")
         prompt_data = {"characters": [], "player": {}}
     prompt_targets = [(c["id"], c["name"], False) for c in prompt_data.get("characters", [])]
     prompt_targets.append(("player", (prompt_data.get("player") or {}).get("name", u"Семён") + u" (ГГ)", True))
@@ -2383,33 +2405,109 @@ def run_settings_window():
         show_result("hist", tr(u"%s реплик в логе") % len(data.get("messages") or []))
 
     def load_hist(cid):
-        def job():
-            try:
-                import urllib.parse
-                url = _server_url() + "/history?character=" + urllib.parse.quote(cid)
-                r = json.loads(urllib.request.urlopen(url, timeout=8).read().decode("utf-8", "replace"))
-            except Exception as e:
-                err = u"Сервер не отдал историю. Закрой процесс ES AI Server и зайди в мод заново.\n%s" % e
-                root.after(0, lambda err=err: _fill_hist(None, err))
-                return
-            if not r.get("ok"):
-                msg = r.get("error") or u"ошибка"
-                root.after(0, lambda msg=msg: _fill_hist(None, msg))
-                return
-            root.after(0, lambda r=r: _fill_hist(r))
-        threading.Thread(target=job, daemon=True).start()
+            def job():
+                # Попытка 1: спросить у работающего сервера
+                try:
+                    import urllib.parse
+                    url = _server_url() + "/history?character=" + urllib.parse.quote(cid)
+                    with urllib.request.urlopen(url, timeout=1.5) as resp:
+                        r = json.loads(resp.read().decode("utf-8", "replace"))
+                    if r.get("ok"):
+                        root.after(0, lambda r=r: _fill_hist(r))
+                        return
+                except Exception:
+                    pass
+
+                # Попытка 2: прочитать напрямую с диска (~/.config/AI.Sovenok/memory/conversations)
+                try:
+                    safe_id = "".join(c for c in cid if c.isalnum() or c in "-_")
+                    mem_file = os.path.join(config_loader.user_data_dir(), "memory", "conversations", f"{safe_id}.json")
+                    if os.path.isfile(mem_file):
+                        with open(mem_file, "r", encoding="utf-8") as f:
+                            disk_data = json.load(f)
+                        ch_info = get_character(cid) or {}
+                        res = {
+                            "ok": True,
+                            "name": ch_info.get("name", cid),
+                            "messages": disk_data.get("messages", []),
+                            "summary": disk_data.get("summary", ""),
+                        }
+                        root.after(0, lambda res=res: _fill_hist(res))
+                        return
+                    else:
+                        ch_info = get_character(cid) or {}
+                        res = {
+                            "ok": True,
+                            "name": ch_info.get("name", cid),
+                            "messages": [],
+                            "summary": "",
+                        }
+                        root.after(0, lambda res=res: _fill_hist(res))
+                        return
+                except Exception as e:
+                    err = f"Ошибка загрузки истории: {e}"
+                    root.after(0, lambda err=err: _fill_hist(None, err))
+
+            threading.Thread(target=job, daemon=True).start()
 
     def hist_do_save():
         if not hist_targets: return
         cid = hist_targets[hist_idx[0]][0]
         text = hist_sum.get("1.0", "end").strip()
         show_result("hist", u"сохраняю выжимку…")
+
+        def job():
+            # Попытка отправить серверу
+            try:
+                r = _post("/history/summary", {"character": cid, "summary": text}, timeout=3)
+                if r.get("ok"):
+                    return u"✓ Выжимка сохранена сервером."
+            except Exception:
+                pass
+
+            # Прямая запись на диск
+            try:
+                safe_id = "".join(c for c in cid if c.isalnum() or c in "-_")
+                conv_dir = os.path.join(config_loader.user_data_dir(), "memory", "conversations")
+                os.makedirs(conv_dir, exist_ok=True)
+                mem_file = os.path.join(conv_dir, f"{safe_id}.json")
+                cur_data = {}
+                if os.path.isfile(mem_file):
+                    with open(mem_file, "r", encoding="utf-8") as f:
+                        cur_data = json.load(f)
+                cur_data["summary"] = text
+                with open(mem_file, "w", encoding="utf-8") as f:
+                    json.dump(cur_data, f, ensure_ascii=False, indent=1)
+                return u"✓ Выжимка сохранена в локальный файл."
+            except Exception as e:
+                return f"✗ Ошибка сохранения: {e}"
+
+        bg("hist", job)
+
+    def hist_do_forget():
+        if not hist_targets: return
+        cid, name = hist_targets[hist_idx[0]]
+        if not es_confirm(u"Забыть переписку?", tr(u"Лог и выжимка «%s» будут стёрты.") % name, u"Забыть"): return
+
         def job():
             try:
-                r = _post("/history/summary", {"character": cid, "summary": text}, timeout=15)
-            except Exception as e: return u"✗ %s" % e
-            if not r.get("ok"): return u"✗ %s" % r.get("error", "")
-            return u"✓ Выжимка сохранена. В нейронку пойдёт она, не весь лог."
+                r = _post("/history/clear", {"character": cid}, timeout=3)
+                if r.get("ok"):
+                    root.after(0, lambda: load_hist(cid))
+                    return u"✓ Переписка стёрта сервером"
+            except Exception:
+                pass
+
+            try:
+                safe_id = "".join(c for c in cid if c.isalnum() or c in "-_")
+                mem_file = os.path.join(config_loader.user_data_dir(), "memory", "conversations", f"{safe_id}.json")
+                if os.path.isfile(mem_file):
+                    os.remove(mem_file)
+                root.after(0, lambda: load_hist(cid))
+                return u"✓ Файл переписки удалён"
+            except Exception as e:
+                return f"✗ {e}"
+
         bg("hist", job)
 
     def hist_do_compress():
@@ -2425,17 +2523,7 @@ def run_settings_window():
             return u"✓ Выжимка готова"
         bg("hist", job)
 
-    def hist_do_forget():
-        if not hist_targets: return
-        cid, name = hist_targets[hist_idx[0]]
-        if not es_confirm(u"Забыть переписку?", tr(u"Лог и выжимка «%s» будут стёрты.") % name, u"Забыть"): return
-        def job():
-            try: r = _post("/history/clear", {"character": cid}, timeout=15)
-            except Exception as e: return u"✗ %s" % e
-            if not r.get("ok"): return u"✗ %s" % r.get("error", "")
-            root.after(0, lambda: load_hist(cid))
-            return u"✓ Переписка стёрта"
-        bg("hist", job)
+
 
     hist_compress = Chip(u"Сжать выжимку", hist_do_compress, font=FB, padx=16)
     hist_save = Chip(u"Сохранить выжимку", hist_do_save, font=FB, padx=16)

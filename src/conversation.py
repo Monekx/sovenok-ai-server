@@ -206,7 +206,7 @@ def build_history_block(char_id, cfg, novel_context=None, novel_who="", location
 
 
 def build_system_prompt(char_id, novel_context=None, novel_who="", summary="", location=""):
-    from characters_store import get_character, reply_rules, player_block
+    from src.characters_store import get_character, reply_rules, player_block
     ch = get_character(char_id)
     parts = [ch.get("persona", ""), ch.get("speech", ""), reply_rules(ch)]
 

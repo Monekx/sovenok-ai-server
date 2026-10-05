@@ -20,7 +20,7 @@ import time
 import urllib.error
 import urllib.request
 
-from config_loader import cfg, keys
+from src.config_loader import cfg, keys
 
 _cache_state = {}
 

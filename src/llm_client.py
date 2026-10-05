@@ -10,7 +10,7 @@ import re
 import urllib.error
 import urllib.request
 
-from config_loader import cfg, keys
+from src.config_loader import cfg, keys
 
 
 class LlmError(Exception):

@@ -24,25 +24,38 @@ _data = None
 _by_id = {}
 
 
-def _get_default_characters_path():
-    """Поиск дефолтного es_characters.json в каталоге платформы или в корне server/."""
-    candidates = [
-        os.path.join(_DIR, "es_characters.json"),
-        os.path.join(os.path.dirname(_DIR), "es_characters.json")
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return candidates[0]
-
-
 def _user_path():
-    """Пользовательская копия es_characters.json (вне установки — переживает апдейты)."""
+    """Пользовательская копия es_characters.json (в ~/.config/AI.Sovenok)."""
     try:
         from config_loader import user_data_dir
         return os.path.join(user_data_dir(), "es_characters.json")
     except Exception:
         return _get_default_characters_path()
+
+
+def _get_default_characters_path():
+    """Поиск эталонного es_characters.json в бандле PyInstaller или проекте."""
+    try:
+        from config_loader import get_template_path
+        p = get_template_path("es_characters.json")
+        if os.path.isfile(p):
+            return p
+    except Exception:
+        pass
+
+    # Fallback-цепочка путей внутри PyInstaller (_MEIPASS / _internal)
+    base = getattr(sys, "_MEIPASS", _DIR)
+    candidates = [
+        os.path.join(base, "src", "json", "es_characters.json"),
+        os.path.join(base, "json", "es_characters.json"),
+        os.path.join(base, "es_characters.json"),
+        os.path.join(_DIR, "src", "json", "es_characters.json"),
+        os.path.join(_DIR, "es_characters.json"),
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return candidates[0]
 
 
 def _load():
@@ -55,23 +68,26 @@ def _load():
         with open(path, "r", encoding="utf-8") as f:
             _data = json.load(f)
     except Exception:
-        # Если пользовательского файла нет или он поврежден — читаем дефолтный
+        # Если пользовательского файла еще нет или он поврежден — читаем эталон
         default_path = _get_default_characters_path()
-        with open(default_path, "r", encoding="utf-8") as f:
-            _data = json.load(f)
+        try:
+            with open(default_path, "r", encoding="utf-8") as f:
+                _data = json.load(f)
+        except Exception as e:
+            print(f"[CHARACTERS ERROR] Не удалось прочитать дефолтный файл {default_path}: {e}")
+            _data = {"characters": [], "player": {}}
 
-        # И сразу засеиваем им пользовательскую директорию
+        # И сразу засеиваем им пользовательский каталог
         try:
             from config_loader import user_data_dir
             dst = os.path.join(user_data_dir(), "es_characters.json")
-            if not os.path.exists(dst) and os.path.exists(default_path):
+            if not os.path.exists(dst) and os.path.isfile(default_path):
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copy2(default_path, dst)
         except Exception as e:
-            print("[CHARACTERS WARN] Ошибка засеивания пользовательского конфига: %s" % e)
+            print(f"[CHARACTERS WARN] Ошибка копирования эталона: {e}")
 
     _by_id = {c["id"]: c for c in _data.get("characters", [])}
-
 
 def characters():
     _load()
