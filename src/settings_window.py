@@ -27,7 +27,7 @@ def _get_base_dir():
     if getattr(sys, "frozen", False):
         return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
     return os.path.dirname(os.path.abspath(__file__))
-ss
+
 BASE_DIR = _get_base_dir()
 sys.path.insert(0, BASE_DIR)
 
