@@ -299,7 +299,7 @@ def _magnifier_image(size=18, color=(58, 41, 19, 255), bg=PARCH):
 
 def _compose_background(w, h):
     try:
-        src = os.path.join(BASE_DIR, "ui", "bg_settings.jpg")
+        src = os.path.join(BASE_DIR, "src", "ui", "bg_settings.jpg")
         if os.path.exists(src):
             img = Image.open(src).convert("RGB")
             scale = max(float(w) / img.width, float(h) / img.height)
